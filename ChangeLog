@@ -1,4 +1,14 @@
-2011-06-07  Dario Rodriguez  <dario.rodriguez@artica.es>
+2011-06-07 Dario Rodriguez <dario.rodriguez@artica.es>
+
+	* satellite_proxy/cfg.php,
+	satellite_proxy/lib.php,
+	satellite_proxy/satellite_proxy.php,
+	central_proxy/central_proxy.pl,
+	central_proxy/ProxyLib.pm,
+	central_proxy/central_proxy.cfg: First version of files, it is a minimal
+	prototype with all functionality.
+
+2011-06-07 Dario Rodriguez <dario.rodriguez@artica.es>
 
 	* ChangeLog: First version of file.
 	* central_proxy, satellite_proxy: Created folder structure.
