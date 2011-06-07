@@ -1,5 +1,14 @@
 2011-06-07 Dario Rodriguez <dario.rodriguez@artica.es>
 
+	*satellite_proxy/cfg.php,
+	satellite_proxy/lib.php,
+	satellite_proxy/satellite_proxy.php,
+	central_proxy/central_proxy.pl,
+	central_proxy/ProxyLib.pm: Files header added, also license and credits
+	of HTTPTunnel by Sebastian Weber (http://http-tunnel.sourceforge.net/)
+
+2011-06-07 Dario Rodriguez <dario.rodriguez@artica.es>
+
 	* satellite_proxy/cfg.php,
 	satellite_proxy/lib.php,
 	satellite_proxy/satellite_proxy.php,
