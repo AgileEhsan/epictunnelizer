@@ -128,6 +128,7 @@ sub mysysread {
 sub openserverport { # u_openserverport fd [portnr] [listenaddr]
 	my (undef,$p,$inaddr)=@_;
 	socket ($_[0],PF_INET,SOCK_STREAM,getprotobyname('tcp')) or return "socket() failed: $!";
+	setsockopt($_[0], SOL_SOCKET, SO_REUSEADDR, 1);
 	if (!bind ($_[0], sockaddr_in($p?$p:0,$inaddr?$inaddr:INADDR_ANY))) {$p=$!; close $_[0]; return "bind() failed: $p";}
 	if (!listen ($_[0],SOMAXCONN)) {$p=$!; close $_[0];return "listen() failed: $p";}
 	select((select($_[0]),$|=1)[0]); # autoflush
