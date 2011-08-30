@@ -31,6 +31,7 @@
 use warnings;
 
 use ProxyLib;
+use RequestLog;
 use Time::HiRes qw( time usleep);
 
 THE_BEG:
@@ -142,6 +143,9 @@ if ($tpaddr) {
 	push (@globalstatus,"Could not resolve ".($cfg->{PROXY_SERVER}?$cfg->{PROXY_SERVER}:$cfg->{SERVER})."!");
 }
 
+#starting request log
+start_request_log ($cfg);
+
 # Set up encryption
 if ($cfg->{ENCRYPTION}) {
 	$rsa = Crypt::OpenSSL::RSA->generate_key(1024);
@@ -246,7 +250,7 @@ sub c_thread { # clientconnect [server_fileno]
 			next;}
 
 		# get the remote server and port to connect to
-		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport});
+		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
 		
 		my $msg_client = $errmsg;
 		
@@ -594,8 +598,8 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 
 # does the SOCKS v4 or v5 handshake before the proxy is connected
 sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
-	my ($svrn, $svrp) = @_;
-	my ($b,$sn,$sp,$us,$pa,$method,$errresp,$msg,@a)=("","",0,"","",0,"","protocol error",());
+	my ($svrn, $svrp, $iaddr) = @_;
+	my ($b,$sn,$sp,$us,$pa,$method,$errresp,$msg, @a)=("","",0,"","",0,"","protocol error",());
 	# method return:
 	# m & 1: socks4
 	# m & 2: socks5
@@ -617,8 +621,9 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 		my $hots = "";
 		my $port = "";
 		my $socket_method = 16;
+		my $url_requested = "";
 		# Get hostname and port
-	
+
 		if ($buff =~ /(CONNECT) (.+):(.+) HTTP.+\r\n/) {
 			$LL>=3 and logline("HTTPS request detected");
 			# It is a HTTPS connection
@@ -626,10 +631,21 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 			$port = $3;
 			$error = "CONNECT";
 			
+			#Collect url requested for connect method
+			$url_requested = $host.":".$port;
+			
 			recv($c_fd,$buff,$cfg->{DATA_SEND_THRESHHOLD}, 0);
 			
 		} elsif ($buff =~ /Host: (.+)\r\n/) {
 			my $aux = $1;
+						
+			#Collect url requested for post and get methods
+			if ($buff =~ /GET (.+) HTTP.+\r\n/) {
+				$url_requested = $1;
+			} elsif ($buff =~ /POST (.+) HTTP.+\r\n/) {
+				$url_requested = $1;
+			}
+		
 			$LL>=3 and logline("HTTP request detected");
 			# Check if port comes with host
 			if ($aux =~ /(.+):(.+)/) {
@@ -640,7 +656,10 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 				$port = 80;
 			}
 		}	
-
+		
+		#Log request
+		log_request ($cfg, $iaddr, $url_requested);
+		
 		$LL>=4 and logline("$c_fd: Client trying to connect to server");
 		return ($host,$port,$error,"","","",16);
 	}

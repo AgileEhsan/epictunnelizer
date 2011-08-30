@@ -1,3 +1,11 @@
+2011-08-30 Dario Rodriguez <dario.rodriguez@artica.es>
+
+	* central_proxy/central_proxy.pl: Modified central_proxy to support request
+	logging.
+	* central_proxy/RequestLog.pm: First version of request log file.
+	* central_proxy/central_proxy.cfg: Added REQUESTS_LOG parameter to conf
+	file.
+
 2011-07-21 Dario Rodriguez <dario.rodriguez@artica.es>
 
 	* central_proxy/ProxyLib.pm: Fixed a bind error when central server is restarting.
