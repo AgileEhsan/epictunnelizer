@@ -30,8 +30,11 @@
 
 use warnings;
 
+use Data::Dumper;
 use ProxyLib;
 use RequestLog;
+use ProxyFilter;
+use ProxySelector;
 use Time::HiRes qw( time usleep);
 
 THE_BEG:
@@ -146,6 +149,12 @@ if ($tpaddr) {
 #starting request log
 start_request_log ($cfg);
 
+#setup filters
+$filters = setup_proxy_filters($cfg);
+
+#setup proxy selector
+$sat_proxies = setup_proxy_selector($cfg);
+
 # Set up encryption
 if ($cfg->{ENCRYPTION}) {
 	$rsa = Crypt::OpenSSL::RSA->generate_key(1024);
@@ -248,9 +257,9 @@ sub c_thread { # clientconnect [server_fileno]
 		if (!checkip($iaddr,$cfg->{SEC_IP})) {
 			$LL>=1 and logline ("$c_fd: Unathorized access to Proxy client from $ip");
 			next;}
-
+			
 		# get the remote server and port to connect to
-		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
+		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method, $url_requested)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
 		
 		my $msg_client = $errmsg;
 		
@@ -276,7 +285,7 @@ sub c_thread { # clientconnect [server_fileno]
 
 		# try to open connection
 		setstatus("Serving connection: $ip:$port ".(($method&4)?"UDP socket":(($method&8)?"BIND":"-> $dad:$dpo"))." (waiting for connection)");
-		($errmsg, $reason, $bad , $bpo )=c_proxy_connect($method, $dad, $dpo, $user, $pass, $msg_client);
+		($errmsg, $reason, $bad , $bpo )=c_proxy_connect($method, $dad, $dpo, $user, $pass, $msg_client, $ip, $url_requested);
 		if ($errmsg) {
 			$LL and logline ($method&4?
 				("$c_fd: ".($user?"$user@":"")."$ip connected to SOCKS server but connect for UPD failed: $errmsg"):
@@ -498,7 +507,7 @@ sub c_proxy_datain {	# c_proxy_datain method
 
 sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	#initialize datain connection
-	my ($method, $sn, $sp, $user, $pass, $msg_client)=@_;
+	my ($method, $sn, $sp, $user, $pass, $msg_client, $client_ip, $url_requested)=@_;
 	$u_fd="U".threads->tid;
 	$t_fd="T".threads->tid;
 
@@ -529,10 +538,33 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	$cfg->{ENABLE_ZLIB} and $copts |= 1;
 	$cfg->{ENCRYPTION} and $copts |=2;
 	$copts |= $method & 12;	
-	my $req= "GET ".($cfg->{PROXY_SERVER}?("http://$cfg->{SERVER}:$cfg->{PORT}"):"").$cfg->{URL}.
+	
+	$satellite_proxy = get_satellite_proxy($sat_proxies, $client_ip);
+	
+	my $denied = undef;
+	
+	#Filter url
+	if (!url_allowed($filters, $client_ip, $satellite_proxy, $url_requested)) {
+		$denied = "url";
+	}
+	
+	#Log request
+	log_request ($cfg, $client_ip, $url_requested, $denied);
+	
+	#If denied was defined print response and close connection
+	if (defined($denied)) {
+		$msg = denied_message($url_requested);
+		my $buff;
+		sysread($c_fd,$buff,$cfg->{DATA_SEND_THRESHHOLD});
+		mysyswrite($c_fd,$msg);
+		close($c_fd);
+		thread_exit();
+	}	
+
+	my $req= "GET ".$satellite_proxy->{URI}.
 		"?a=c&sw=$cfg->{DATA_SEQUENCE_WRAP}&s=".tourl($sn)."&p=$sp&o=$copts".
 		($cfg->{ENCRYPTION}?"&pk=".tourl($pubkey):"")." HTTP/1.0\r\n";
-	$req.="Host: $cfg->{SERVER}\r\n";
+	$req.="Host: ".$satellite_proxy->{SERVER}."\r\n";
 	if ($cfg->{AUTH_TYPE} eq "basic") {
 		if ($cfg->{AUTH_PASSTHROUGH} && defined($user) && $user) {
 			$req.="Authorization: Basic ".encode_base64($user.":".$pass,'')."\r\n";}
@@ -598,7 +630,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 
 # does the SOCKS v4 or v5 handshake before the proxy is connected
 sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
-	my ($svrn, $svrp, $iaddr) = @_;
+	my ($svrn, $svrp) = @_;
 	my ($b,$sn,$sp,$us,$pa,$method,$errresp,$msg, @a)=("","",0,"","",0,"","protocol error",());
 	# method return:
 	# m & 1: socks4
@@ -656,12 +688,9 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 				$port = 80;
 			}
 		}	
-		
-		#Log request
-		log_request ($cfg, $iaddr, $url_requested);
-		
+				
 		$LL>=4 and logline("$c_fd: Client trying to connect to server");
-		return ($host,$port,$error,"","","",16);
+		return ($host,$port,$error,"","","",16, $url_requested);
 	}
 
 	# we have a socks request
