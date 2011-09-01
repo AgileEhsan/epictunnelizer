@@ -365,7 +365,6 @@ sub checkip {	# checkip ip ips
 }	
 
 sub thread_exit {
-	closeconf($cfg);
 	threads->exit(0);
 }
 
