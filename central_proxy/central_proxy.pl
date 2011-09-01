@@ -31,6 +31,7 @@
 use warnings;
 
 use Data::Dumper;
+use ProxyConfig;
 use ProxyLib;
 use RequestLog;
 use ProxyFilter;

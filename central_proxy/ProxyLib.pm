@@ -27,6 +27,7 @@
 
 package main;
 
+use ProxyConfig;
 use threads;
 use threads::shared;
 use Thread::Queue;
@@ -64,23 +65,6 @@ sub tourl { # tourl arg1 arg2 ....
         $ret[$i]=~s/(\W)/'%'.unpack("H2",$1)/eg;
     }
     $#ret==0?$ret[0]:@ret;        
-}
-
-sub readconfig { # readconfig <filename>
-    my $fname=shift;
-    my $tmp;
-    my %cfg=();
-    open (FD,"<$fname") or die ("$fname: $!");
-    while (<FD>) {
-        chomp;
-        if (m/^\s*$/) {next;}
-        if (m/^#\s*(.*)$/) {next;}
-        if (m/^\s*(\w+?)\s*=\s*("|)(.*?)("|)\s*$/) {
-            $tmp=$1;
-            $cfg{$tmp}.=((!defined($cfg{$tmp}) || $cfg{$tmp} eq "")?"":"\n").(defined($3)?$3:"");
-	}	}
-    close FD;
-    return \%cfg;
 }
 
 sub getparams { # getparams <string> [hashref]
@@ -381,6 +365,7 @@ sub checkip {	# checkip ip ips
 }	
 
 sub thread_exit {
+	closeconf($cfg);
 	threads->exit(0);
 }
 
