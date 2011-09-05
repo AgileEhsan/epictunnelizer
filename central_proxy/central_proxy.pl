@@ -37,6 +37,7 @@ use RequestLog;
 use ProxyFilter;
 use ProxySelector;
 use Time::HiRes qw( time usleep);
+use Thread::Semaphore;
 
 THE_BEG:
 # globals in all threads
@@ -121,6 +122,10 @@ our %t_type : shared = ();
 our $id_access : shared = "";
 our $id_ban : shared = "";
 
+my $sem :shared = Thread::Semaphore->new (1);
+my $mon_sem : shared = Thread::Semaphore->new(0);
+my %net_stats :shared;
+
 eval{$tpaddr   = inet_aton($cfg->{PROXY_SERVER}?$cfg->{PROXY_SERVER}:$cfg->{SERVER});};
 if ($tpaddr) {
 	$tpaddr   = sockaddr_in($cfg->{PROXY_SERVER}?$cfg->{PROXY_PORT}:$cfg->{PORT}, $tpaddr);
@@ -162,6 +167,12 @@ if ($cfg->{ENCRYPTION}) {
 	$rsa->use_pkcs1_oaep_padding();
 	$pubkey=$rsa->get_public_key_x509_string();
 	$pubkey=~s/-----.*?-----|\n|\r|=//g;
+}
+
+# Create monitoring thread
+if ($cfg->{MONITORING_ENABLED}) {
+	$mon_thread = threads->create("monitoring");
+	$mon_thread->detach();
 }
 
 # Spawn the sending threads
@@ -208,6 +219,160 @@ for (;;) {
 }
 
 #####
+## updates net statistics
+#####
+
+sub update_net_stats($$$) {
+	my ($ip, $bytes, $type) = @_;
+	
+	### BLOCK for write ###
+	$sem->down();	
+
+	if (!defined($net_stats{$ip})) {
+		my %aux_hash :shared = (SEND , 0 , RECV , 0, REQ, 0);
+		$net_stats{$ip} = \%aux_hash;
+	}
+
+	#Add one to request
+	$net_stats{$ip}->{REQ}++;
+	
+	if ($type eq "send") {
+		$net_stats{$ip}->{SEND} = $net_stats{$ip}->{SEND} + $bytes;
+	} elsif ($type eq "recv") {
+		$net_stats{$ip}->{RECV} = $net_stats{$ip}->{RECV} + $bytes;
+	}
+
+	### RELEASE for write ###
+	$sem->up();		
+}
+
+#####
+## create pandora xml to monitor the net_stats
+#####
+sub dump_net_stats() {
+	
+	$total_request = 0;
+	$total_send = 0;
+	$total_recv = 0;
+	
+	### BLOCK for write ###
+	$sem->down();	
+	
+	# Generate stats for each IP
+	foreach my $ip (keys %net_stats){
+		my $time = time();
+		
+		$time =~ s/\..+//; 
+		
+		@date = localtime($time);
+			
+		$str_date = strftime("%Y/%m/%d %H:%M:%S", @date);
+		open(FD, ">", "pandora_data/".$ip."_".$time.".data");
+			
+		print FD "<?xml version='1.0' encoding='ISO-8859-1'?>\n";
+		print FD "<agent_data os_name='Other' os_version='1' 
+					interval='300' version='1' timestamp='$str_date' 
+					agent_name='$ip' timezone_offset='0'>\n";
+					
+		print FD "<module>\n";
+		print FD "<name><![CDATA[Bytes send]]></name>\n";
+		print FD "<description><![CDATA[Amount of bytes send]]></description>\n";
+		print FD "<type>generic_data</type>\n";
+		print FD "<data><![CDATA[".$net_stats{$ip}->{SEND}."]]></data>\n";
+		print FD "</module>\n";
+		
+		print FD "<module>\n";
+		print FD "<name><![CDATA[Bytes recv]]></name>\n";
+		print FD "<description><![CDATA[Amount of bytes received]]></description>\n";
+		print FD "<type>generic_data</type>\n";
+		print FD "<data><![CDATA[".$net_stats{$ip}->{RECV}."]]></data>\n";
+		print FD "</module>\n";	
+		
+		print FD "<module>\n";
+		print FD "<name><![CDATA[Requests]]></name>\n";
+		print FD "<description><![CDATA[Number of request]]></description>\n";
+		print FD "<type>generic_data</type>\n";
+		print FD "<data><![CDATA[".$net_stats{$ip}->{REQ}."]]></data>\n";
+		print FD "</module>\n";
+		
+		print FD "</agent_data>\n";			
+		
+		close (FD);
+		
+		
+		#Calculate global stats
+		$total_recv = $total_recv + $net_stats{$ip}->{SEND};
+		$total_send = $total_send + $net_stats{$ip}->{RECV};
+		$total_request  = $total_request + $net_stats{$ip}->{REQ};
+	} 
+	
+	#Generate global proxy net stats
+	$time = time();
+	
+	$time =~ s/\..+//; 
+	
+	@date = localtime($time);
+		
+	$str_date = strftime("%Y/%m/%d %H:%M:%S", @date);
+	open(FD, ">", "pandora_data/global-proxy_".$time.".data");
+		
+	print FD "<?xml version='1.0' encoding='ISO-8859-1'?>\n";
+	print FD "<agent_data os_name='Other' os_version='1' 
+				interval='300' version='1' timestamp='$str_date' 
+				agent_name='EpicTunnelizer Stats' timezone_offset='0'>\n";
+				
+	print FD "<module>\n";
+	print FD "<name><![CDATA[Bytes send]]></name>\n";
+	print FD "<description><![CDATA[Amount of bytes send for all ips]]></description>\n";
+	print FD "<type>generic_data</type>\n";
+	print FD "<data><![CDATA[".$total_send."]]></data>\n";
+	print FD "</module>\n";
+	
+	print FD "<module>\n";
+	print FD "<name><![CDATA[Bytes recv]]></name>\n";
+	print FD "<description><![CDATA[Amount of bytes received for all ips]]></description>\n";
+	print FD "<type>generic_data</type>\n";
+	print FD "<data><![CDATA[".$total_recv."]]></data>\n";
+	print FD "</module>\n";	
+	
+	print FD "<module>\n";
+	print FD "<name><![CDATA[Requests]]></name>\n";
+	print FD "<description><![CDATA[Number of request for all ips]]></description>\n";
+	print FD "<type>generic_data</type>\n";
+	print FD "<data><![CDATA[".$total_request."]]></data>\n";
+	print FD "</module>\n";
+	
+	print FD "</agent_data>\n";
+	
+	close (FD);	
+	
+	#Reset array
+	foreach my $ip (keys %net_stats){
+		$net_stats{$ip}->{SEND} = 0;
+		$net_stats{$ip}->{RECV} = 0;
+		$net_stats{$ip}->{REQ} = 0;
+	}		
+	
+	close (FD);
+	
+	### RELEASE for write ###
+	$sem->up();				
+}
+
+sub monitoring {
+	
+	# Set up signal handler
+	$SIG{TERM}=\&thread_exit;	
+	
+	print "Monitoring enabled\n";
+	$LL>=1 and logline ("Monitoring enabled");	
+	while (1) {
+		dump_net_stats();
+		sleep($cfg->{MONITORING_INTERVAL});
+	}
+}
+
+#####
 ## these are functions for the client serving thread
 #####
 sub c_thread { # clientconnect [server_fileno]
@@ -249,7 +414,7 @@ sub c_thread { # clientconnect [server_fileno]
 		open ($c_fd,"+<&CLIENT");
 		close (CLIENT);
 		$c_fn=fileno($c_fd);
-
+		
 		# signal our main process, that the connection is accepted and he can stop waiting
 		$syncqueue->enqueue("x");
 		if (id_isipbanned($ip)) {next;}
@@ -261,7 +426,7 @@ sub c_thread { # clientconnect [server_fileno]
 			
 		# get the remote server and port to connect to
 		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method, $url_requested)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
-		
+
 		my $msg_client = $errmsg;
 		
 		#Check if dad is defined.It occurs when a web browser is closed
@@ -336,11 +501,11 @@ sub c_thread { # clientconnect [server_fileno]
 			for $s_fileno (handles($rout)) {
 				# Do we have data coming in from the proxy
 				if (!$exitflag && $s_fileno==$t_fn) {
-					c_proxy_datain ($method);
+					c_proxy_datain ($ip, $method);
 				}
 				# Do we have data coming in from a client
 				elsif (!$exitflag && $s_fileno) {
-					c_clientdatain ($s_fileno);
+					c_clientdatain ($ip, $s_fileno);
 				}
 			}
 			if (!$exitflag && $alrm!=0 && $alrm-time()<=0) {c_proxy_dataout();}
@@ -373,6 +538,7 @@ sub c_killclient {	# killclient [message] [loglevel]
 }
 
 sub c_clientdatain {	# c_clientdatain clientfileno
+	my $ip_client = shift;
 	my $fn=shift;
 	my ($i,$buf)=(0,"");
 
@@ -433,6 +599,7 @@ sub c_clientdatain {	# c_clientdatain clientfileno
 			$i=length($buf)-7-(ord(substr($buf,3,1))==1?3:ord(substr($buf,4,1)));
 		}
 		$t_outcount+=$i;
+		update_net_stats($ip_client, $i, "send");
 		$LL>=9 and logline("$c_fd: -> ".bin2txt(substr($buf,-$i)));
 		# zip and encrypt the contents if applicable
 		$copts & 1 and $buf=compress($buf,9);
@@ -464,6 +631,7 @@ sub c_proxy_dataout {	# c_proxy_dataout
 }
 
 sub c_proxy_datain {	# c_proxy_datain method
+	my $ip_client = shift;
 	my $method=shift;
 	my ($buf,$rawbuf,$i);
 
@@ -497,6 +665,8 @@ sub c_proxy_datain {	# c_proxy_datain method
 					substr($rawbuf,0,10)="";
 				} else {
 					mysyswrite($c_fd,$rawbuf);}
+					
+				update_net_stats($ip_client, length($rawbuf), "recv");
 				$t_incount+=length($rawbuf);
 				$LL>=3 and logline ("$c_fd: <- ".bin2txt($rawbuf));
 			} else {

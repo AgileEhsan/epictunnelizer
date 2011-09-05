@@ -35,7 +35,7 @@ use Data::Dumper;
 sub setup_proxy_selector ($) {
 	my $cfg = shift; 
 	
-	open(FD, "<", $cfg->{SELECTOR_CONF}) || die "Proxy selector conf is not available";
+	open(FD, "<", "proxy_selectors.cfg") || die "Proxy selector conf is not available";
 	
 	my $sat_proxies;
 	
