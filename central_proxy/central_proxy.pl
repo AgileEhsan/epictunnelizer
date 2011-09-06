@@ -121,6 +121,7 @@ our %t_type : shared = ();
 our $id_access : shared = "";
 our $id_ban : shared = "";
 
+#Monitoring semaphore
 my $sem :shared = Thread::Semaphore->new (1);
 my %net_stats :shared;
 
@@ -211,6 +212,9 @@ for (;;) {
 		connection_cleanup ($restartq->dequeue);
 		goto THE_BEG;
 	}
+	
+	#Refresh selectors if needed
+	$sat_proxies = refresh_selector($cfg, $sat_proxies);
 }
 
 #####

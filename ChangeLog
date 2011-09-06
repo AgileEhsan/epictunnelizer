@@ -1,5 +1,12 @@
 2011-09-06 Dario Rodriguez <dario.rodriguez@artica.es>
 
+	* central_proxy/central_proxy.pl: Added refresh_selector functions.
+	* central_proxy/central_proxy.cfg: Added SELECTOR_INTERVAL.
+	* central_proxy/ProxySelector.pm: Added refresh_selector and deneid_message
+	functions.
+
+2011-09-06 Dario Rodriguez <dario.rodriguez@artica.es>
+
 	* ProxyFilter.pm: Delete file.
 	* central_proxy.pl: Adapted to use new ProxySelector library.
 	* ProxySelector.pm: Now you can develop selections and filters with one

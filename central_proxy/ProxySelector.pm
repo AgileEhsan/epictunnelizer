@@ -61,4 +61,23 @@ sub get_satellite_proxy ($$$) {
 	return ($sat_proxies->{1}, undef);
 }
 
+sub refresh_selector($$) {
+	my $cfg = shift;
+	my $selectors = shift;	
+
+	return $selectors;
+}
+
+sub denied_message ($) {
+	my $url = shift;
+	my $msg = "";
+	
+	$msg .= "HTTP/1.0 403 Forbidden\r\n";
+	$msg .= "\r\n";
+	$msg .= "<h1>The url: $url is not allowed</h1>";
+	$msg .= "<br><br>";
+	$msg .= "<h3>Please contact with the system administrator</h3>";
+	
+	return $msg;
+}
 1;
