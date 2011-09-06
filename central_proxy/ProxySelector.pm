@@ -55,10 +55,10 @@ sub setup_proxy_selector ($) {
 	return $sat_proxies;
 }
 
-sub get_satellite_proxy ($$) {
-	my ($sat_proxies, $client_ip) = @_;
+sub get_satellite_proxy ($$$) {
+	my ($sat_proxies, $client_ip, $url_requested) = @_;
 
-	return $sat_proxies->{1};
+	return ($sat_proxies->{1}, undef);
 }
 
 1;

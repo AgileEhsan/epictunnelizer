@@ -34,7 +34,6 @@ use Data::Dumper;
 use ProxyConfig;
 use ProxyLib;
 use RequestLog;
-use ProxyFilter;
 use ProxySelector;
 use Time::HiRes qw( time usleep);
 use Thread::Semaphore;
@@ -153,9 +152,6 @@ if ($tpaddr) {
 
 #starting request log
 start_request_log ($cfg);
-
-#setup filters
-$filters = setup_proxy_filters($cfg);
 
 #setup proxy selector
 $sat_proxies = setup_proxy_selector($cfg);
@@ -709,15 +705,9 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	$cfg->{ENCRYPTION} and $copts |=2;
 	$copts |= $method & 12;	
 	
-	$satellite_proxy = get_satellite_proxy($sat_proxies, $client_ip);
-	
-	my $denied = undef;
-	
-	#Filter url
-	if (!url_allowed($filters, $client_ip, $satellite_proxy, $url_requested)) {
-		$denied = "url";
-	}
-	
+	#Get satellite proxy
+	my ($satellite_proxy, $denied) = get_satellite_proxy($sat_proxies, $client_ip, $url_requested);
+		
 	#Log request
 	log_request ($cfg, $client_ip, $url_requested, $denied);
 	
