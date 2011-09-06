@@ -123,7 +123,6 @@ our $id_access : shared = "";
 our $id_ban : shared = "";
 
 my $sem :shared = Thread::Semaphore->new (1);
-my $mon_sem : shared = Thread::Semaphore->new(0);
 my %net_stats :shared;
 
 eval{$tpaddr   = inet_aton($cfg->{PROXY_SERVER}?$cfg->{PROXY_SERVER}:$cfg->{SERVER});};
