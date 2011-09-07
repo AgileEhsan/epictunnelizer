@@ -424,7 +424,7 @@ sub c_thread { # clientconnect [server_fileno]
 			next;}
 			
 		# get the remote server and port to connect to
-		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method, $url_requested)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
+		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method, $url_requested, $ctype)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
 
 		my $msg_client = $errmsg;
 		
@@ -450,7 +450,7 @@ sub c_thread { # clientconnect [server_fileno]
 
 		# try to open connection
 		setstatus("Serving connection: $ip:$port ".(($method&4)?"UDP socket":(($method&8)?"BIND":"-> $dad:$dpo"))." (waiting for connection)");
-		($errmsg, $reason, $bad , $bpo )=c_proxy_connect($method, $dad, $dpo, $user, $pass, $msg_client, $ip, $url_requested);
+		($errmsg, $reason, $bad , $bpo )=c_proxy_connect($method, $dad, $dpo, $user, $pass, $msg_client, $ip, $url_requested, $ctype);
 		if ($errmsg) {
 			$LL and logline ($method&4?
 				("$c_fd: ".($user?"$user@":"")."$ip connected to SOCKS server but connect for UPD failed: $errmsg"):
@@ -677,7 +677,7 @@ sub c_proxy_datain {	# c_proxy_datain method
 
 sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	#initialize datain connection
-	my ($method, $sn, $sp, $user, $pass, $msg_client, $client_ip, $url_requested)=@_;
+	my ($method, $sn, $sp, $user, $pass, $msg_client, $client_ip, $url_requested, $ctype)=@_;
 	$u_fd="U".threads->tid;
 	$t_fd="T".threads->tid;
 
@@ -726,7 +726,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	}	
 
 	my $req= "GET ".$satellite_proxy->{URI}.
-		"?a=c&sw=$cfg->{DATA_SEQUENCE_WRAP}&s=".tourl($sn)."&p=$sp&o=$copts".
+		"?a=c&sw=$cfg->{DATA_SEQUENCE_WRAP}&ctype=$ctype&s=".tourl($sn)."&p=$sp&o=$copts".
 		($cfg->{ENCRYPTION}?"&pk=".tourl($pubkey):"")." HTTP/1.0\r\n";
 	$req.="Host: ".$satellite_proxy->{SERVER}."\r\n";
 	if ($cfg->{AUTH_TYPE} eq "basic") {
@@ -775,7 +775,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	}
 	
 	# check if connect method was detected
-	if ($msg_client eq "CONNECT") {
+	if ($ctype eq "CONNECT") {
 		# send OK msg to client
 		$LL>=3 and logline ("Send response to CONNECT command");		
 		my $resp_buff =  "HTTP/1.0 200 Connection established\r\n\r\n";
@@ -818,6 +818,7 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 		my $port = "";
 		my $socket_method = 16;
 		my $url_requested = "";
+		my $ctype = "NORMAL";
 		# Get hostname and port
 
 		if ($buff =~ /(CONNECT) (.+):(.+) HTTP.+\r\n/) {
@@ -825,8 +826,7 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 			# It is a HTTPS connection
 			$host = $2;
 			$port = $3;
-			$error = "CONNECT";
-			
+			$ctype = "CONNECT";
 			#Collect url requested for connect method
 			$url_requested = $host.":".$port;
 			
@@ -854,7 +854,7 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 		}	
 				
 		$LL>=4 and logline("$c_fd: Client trying to connect to server");
-		return ($host,$port,$error,"","","",16, $url_requested);
+		return ($host,$port,$error,"","","",16, $url_requested, $ctype);
 	}
 
 	# we have a socks request

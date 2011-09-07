@@ -29,26 +29,10 @@
 
 	if (!isset($_REQUEST["a"])) exit;
 	
-	//connect function
-	function response_connect($buffer) {
-		return;
-		logline (3, "BUFF > ".$buffer);
-		//check if method connect method was sent
-		if (preg_match('/CONNECT/',$buffer)) {
-			logline (10, "CONNECT method detected"); 
-			
-			//if connect method was detected send ok response
-			// to the client and exit.
-			header( "HTTP/1.0 200 Connection established" );
-			header( "Proxy-agent: proxy_server" );
-			echo "";
-			exit;			
-		}
-	}
-	
-
 	// configuration
 	include ("cfg.php");
+	include ("requestlog_lib.php");
+
 	$useunix=in_array("unix", stream_get_transports()) && !$IPC_LOADBALANCE;
 
 	function myfwrite ($fd,$buf) {
@@ -155,7 +139,7 @@
 		$ki=$TKEEPALIVE_INTERVAL;
 		$dad=$_REQUEST["s"];
 		$dpo=$_REQUEST["p"];
-
+		$ctype=$_REQUEST["ctype"];
 		// check connection options
 		$copts=$_REQUEST["o"];
 		if (!in_array("zlib",get_loaded_extensions())) $copts &= 254;
@@ -271,7 +255,6 @@
 									unset($sequence_buffer[$sequence]);
 									unset($sequence_buffer[$sequence+(($sequence-floor($sw/2))<0?$sw:0)-floor($sw/2)]);
 
-									response_connect($buf);
 									$i=strlen($buf);
 									if ($copts & 4) { # udp package processing
 										# in case were cascading, we're forwarding the package 'as is'
@@ -292,6 +275,7 @@
 									} else { # tcp package processing
 										myfwrite($rmsock,$buf);
 									}
+									request_log ($_SERVER["REMOTE_ADDR"], substr($buf,-$i), $ctype, $dad, $dpo);
 									logline(3,"$ident: -> ".bin2txt(substr($buf,-$i)));
 									$outcount+=$i;
 									$sequence++;$sequence %= $sw;

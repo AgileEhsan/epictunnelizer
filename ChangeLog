@@ -1,3 +1,11 @@
+2011-09-07 Dario Rodriguez <dario.rodriguez@artica.es>
+
+	* satellite_proxy/cfg.php: Added parameter for request log path. 
+	* satellite_proxy/requestlog_lib.php: First version of file.
+	* satellite_proxy/satellite_proxy.php: Added support to log requests
+	* central_proxy/central_proxy.pl: Added support to send info about 
+	connect type to php proxy (only used for logs).
+
 2011-09-06 Dario Rodriguez <dario.rodriguez@artica.es>
 
 	* central_proxy/pandora_data: Added pandora_data folder.
