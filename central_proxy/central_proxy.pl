@@ -720,7 +720,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	my ($satellite_proxy, $denied) = get_satellite_proxy($sat_proxies, $client_ip, $url_requested);
 		
 	#Log request
-	log_request ($cfg, $client_ip, $url_requested, $denied);
+	log_request ($cfg, $client_ip, $url_requested, $satellite_proxy, $denied);
 	
 	#If denied was defined print response and close connection
 	if (defined($denied)) {

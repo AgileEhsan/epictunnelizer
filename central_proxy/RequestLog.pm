@@ -40,23 +40,27 @@ sub start_request_log ($) {
 	close(FD);	
 }
 
-sub log_request ($$$;$) {
+sub log_request ($$$$;$) {
 	
-	my ($cfg, $ip, $url, $denied) = @_;
+	my ($cfg, $ip, $url, $sat_proxy, $denied) = @_;
 	
 	my $log_file = $cfg->{REQUESTS_LOG};
 		
 	my $time = time();
+	
+	my $url_proxy = $sat_proxy->{SERVER}.$sat_proxy->{URI};
 
 	my @date = localtime($time);
 			
 	my $str_date = strftime("%d-%m-%Y %H:%M:%S", @date);
 	
-	my $log_str = $str_date." ".$ip." ".$url;
+	my $log_str = $str_date." ".$ip." ".$url." ".$url_proxy;
 	
 	#Denied possible values are: url or geolocation
 	if (defined($denied)) {
-		$log_str .= " ".$denied." denied";
+		$log_str .= " FORBIDDEN";
+	} else {
+		$log_str .= " REQUESTED";		
 	}
 	
 	open(FD, ">>", $log_file);
