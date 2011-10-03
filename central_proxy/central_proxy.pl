@@ -257,6 +257,8 @@ sub dump_net_stats() {
 	### BLOCK for write ###
 	$sem->down();	
 	
+	my $agent_group = $cfg->{MONITORING_GROUP};	
+	
 	# Generate stats for each IP
 	foreach my $ip (keys %net_stats){
 		my $time = time();
@@ -266,12 +268,15 @@ sub dump_net_stats() {
 		@date = localtime($time);
 			
 		$str_date = strftime("%Y/%m/%d %H:%M:%S", @date);
-		open(FD, ">", "pandora_data/".$ip."_".$time.".data");
+		
+		my $agent_name = $cfg->{MONITORING_PREFIX}.$ip;
+		
+		open(FD, ">", "pandora_data/".$agent_name."_".$time.".data");
 			
 		print FD "<?xml version='1.0' encoding='ISO-8859-1'?>\n";
-		print FD "<agent_data os_name='Other' os_version='1' 
+		print FD "<agent_data os_name='Other' os_version='1' group='$agent_group'
 					interval='300' version='1' timestamp='$str_date' 
-					agent_name='$ip' timezone_offset='0'>\n";
+					agent_name='$agent_name' timezone_offset='0'>\n";
 					
 		print FD "<module>\n";
 		print FD "<name><![CDATA[Bytes send]]></name>\n";
@@ -303,7 +308,7 @@ sub dump_net_stats() {
 		$total_recv = $total_recv + $net_stats{$ip}->{SEND};
 		$total_send = $total_send + $net_stats{$ip}->{RECV};
 		$total_request  = $total_request + $net_stats{$ip}->{REQ};
-	} 
+	}
 	
 	#Generate global proxy net stats
 	$time = time();
@@ -311,14 +316,16 @@ sub dump_net_stats() {
 	$time =~ s/\..+//; 
 	
 	@date = localtime($time);
+	
+	my $global_name = $cfg->{MONITORING_GLOBAL_NAME};
 		
 	$str_date = strftime("%Y/%m/%d %H:%M:%S", @date);
-	open(FD, ">", "pandora_data/global-proxy_".$time.".data");
+	open(FD, ">", "pandora_data/".$global_name."_".$time.".data");
 		
 	print FD "<?xml version='1.0' encoding='ISO-8859-1'?>\n";
-	print FD "<agent_data os_name='Other' os_version='1' 
+	print FD "<agent_data os_name='Other' os_version='1' group='$agent_group'
 				interval='300' version='1' timestamp='$str_date' 
-				agent_name='EpicTunnelizer Stats' timezone_offset='0'>\n";
+				agent_name='$global_name' timezone_offset='0'>\n";
 				
 	print FD "<module>\n";
 	print FD "<name><![CDATA[Bytes send]]></name>\n";
@@ -691,7 +698,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 		$sn=inet_ntoa($sn);
 		$u_fn=fileno($u_fd);
 	}
-
+	print "PROXY => ".$cfg->{PROXY_SERVER}.":".$cfg->{PROXY_PORT}."\n";
 	# connect the main connection
 	my $ident="";
 	socket($t_fd, PF_INET, SOCK_STREAM, getprotobyname('tcp'))  || return "socket: $!";
