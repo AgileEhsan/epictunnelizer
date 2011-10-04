@@ -1,3 +1,9 @@
+2011-10-04 Dario Rodriguez <dario.rodriguez@artica.es>
+
+	* central_proxy/central_proxy.pl: Adde support for satellite proxy
+	authentication.
+	* central_proxy/ProxySelector.pm: Denied message changed.
+
 2011-10-03 Dario Rodriguez <dario.rodriguez@artica.es>
 
 	* central_proxy/central_proxy.pl: Added proxy to request_log function

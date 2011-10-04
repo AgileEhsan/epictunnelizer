@@ -69,12 +69,12 @@ sub refresh_selector($$) {
 }
 
 sub denied_message ($) {
-	my $url = shift;
+	my $sat_proxy = shift;
 	my $msg = "";
 	
 	$msg .= "HTTP/1.0 403 Forbidden\r\n";
 	$msg .= "\r\n";
-	$msg .= "<h1>The url: $url is not allowed</h1>";
+	$msg .= "<h1>The url is not allowed</h1>";
 	$msg .= "<br><br>";
 	$msg .= "<h3>Please contact with the system administrator</h3>";
 	

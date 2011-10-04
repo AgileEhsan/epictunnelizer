@@ -698,7 +698,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 		$sn=inet_ntoa($sn);
 		$u_fn=fileno($u_fd);
 	}
-	print "PROXY => ".$cfg->{PROXY_SERVER}.":".$cfg->{PROXY_PORT}."\n";
+
 	# connect the main connection
 	my $ident="";
 	socket($t_fd, PF_INET, SOCK_STREAM, getprotobyname('tcp'))  || return "socket: $!";
@@ -724,7 +724,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 	
 	#If denied was defined print response and close connection
 	if (defined($denied)) {
-		$msg = denied_message($url_requested);
+		$msg = denied_message($satellite_proxy);
 		my $buff;
 		sysread($c_fd,$buff,$cfg->{DATA_SEND_THRESHHOLD});
 		mysyswrite($c_fd,$msg);
@@ -736,10 +736,10 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 		"?a=c&sw=$cfg->{DATA_SEQUENCE_WRAP}&ctype=$ctype&s=".tourl($sn)."&p=$sp&o=$copts".
 		($cfg->{ENCRYPTION}?"&pk=".tourl($pubkey):"")." HTTP/1.0\r\n";
 	$req.="Host: ".$satellite_proxy->{SERVER}."\r\n";
-	if ($cfg->{AUTH_TYPE} eq "basic") {
-		if ($cfg->{AUTH_PASSTHROUGH} && defined($user) && $user) {
+	if ($satellite_proxy->{AUTH_TYPE} eq "basic") {
+		if ($satellite_proxy->{AUTH_PASSTHROUGH} && defined($user) && $user) {
 			$req.="Authorization: Basic ".encode_base64($user.":".$pass,'')."\r\n";}
-		elsif ($cfg->{AUTH_USER}) {
+		elsif ($satellite_proxy->{AUTH_USER}) {
 			$req.="Authorization: Basic ".encode_base64($cfg->{AUTH_USER}.":".$cfg->{AUTH_PASS},'')."\r\n";}
 	}
 	if ($cfg->{PROXY_SERVER} && $cfg->{PROXY_AUTH_TYPE} eq "basic") {
