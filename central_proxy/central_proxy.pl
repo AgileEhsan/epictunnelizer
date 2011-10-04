@@ -740,7 +740,7 @@ sub c_proxy_connect {	# usage: c_proxy_connect method server port user pass
 		if ($satellite_proxy->{AUTH_PASSTHROUGH} && defined($user) && $user) {
 			$req.="Authorization: Basic ".encode_base64($user.":".$pass,'')."\r\n";}
 		elsif ($satellite_proxy->{AUTH_USER}) {
-			$req.="Authorization: Basic ".encode_base64($cfg->{AUTH_USER}.":".$cfg->{AUTH_PASS},'')."\r\n";}
+			$req.="Authorization: Basic ".encode_base64($satellite_proxy->{AUTH_USER}.":".$satellite_proxy->{AUTH_PASS},'')."\r\n";}
 	}
 	if ($cfg->{PROXY_SERVER} && $cfg->{PROXY_AUTH_TYPE} eq "basic") {
 		if ($cfg->{PROXY_AUTH_PASSTHROUGH} && defined($user) && $user) {

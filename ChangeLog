@@ -1,5 +1,9 @@
 2011-10-04 Dario Rodriguez <dario.rodriguez@artica.es>
 
+	* central_proxy/central_proxy.pl: Fixed a mistake with proxy authentication.
+
+2011-10-04 Dario Rodriguez <dario.rodriguez@artica.es>
+
 	* central_proxy/ProxySelector.pm: Fixed an errror with satellite proxy
 	authentication.
 
