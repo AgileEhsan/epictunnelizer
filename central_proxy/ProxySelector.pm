@@ -58,6 +58,7 @@ sub setup_proxy_selector ($) {
 sub get_satellite_proxy ($$$) {
 	my ($sat_proxies, $client_ip, $url_requested) = @_;
 
+	$sat_proxies->{1}->{AUTH_TYPE} = "none";
 	return ($sat_proxies->{1}, undef);
 }
 
