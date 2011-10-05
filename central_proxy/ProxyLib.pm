@@ -526,37 +526,6 @@ sub serve_log { # c_servelog paramhash, fd
 	return "";
 }
 
-sub connection_restart {
-	$restartq->enqueue("Caught SIG$_[0] - Restarting ...");
-}
-
-sub connection_exit {
-	connection_cleanup (($_[0]?"Caught SIG$_[0] - ":"")."Shutting down");
-	exit (0);
-}
-
-sub connection_cleanup {
-	my ($i,$fd);
-	defined ($_[0]) and logline ($_[0],$LL,1);
-	# clean up the logger thread
-	if ($LL) {
-		$logqueue->enqueue("x");
-		$log_t->join;
-	}
-	# clean up all other threads
-	foreach $i (threads->list()) {$i->kill("TERM");}
-	foreach $i (threads->list()) {defined ($sendqueue) and $sendqueue->enqueue("x");$conqueue->enqueue("x");}
-	# shut down all server sockets
-	if (%server_sockets) {
-		for $i (keys(%server_sockets)) {
-			$fd=$server_sockets{$i}->{fd};
-			fileno($fd) and shutdown($fd,2);close($fd);
-		}
-	}
-	fileno(SERVER) and shutdown(SERVER,2);close (SERVER);
-	foreach $i (threads->list()) {$i->join();}
-}
-
 sub ssl_encrypt {
 	my ($source,$key)=@_;
 	my $maxlength=$key->size()-42;
