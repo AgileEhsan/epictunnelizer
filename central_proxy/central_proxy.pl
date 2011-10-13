@@ -431,8 +431,12 @@ sub c_thread { # clientconnect [server_fileno]
 			next;}
 			
 		# get the remote server and port to connect to
-		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method, $url_requested, $ctype)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
-
+		($dad, $dpo, $errmsg, $errresp, $user, $pass, $method, $url_requested, $ctype, $ip_fordward)=c_getclientinfo($server_sockets{$s_fn}->{rname},$server_sockets{$s_fn}->{rport}, $ip);
+		
+		if (defined($ip_fordward)) {
+			$ip = $ip_fordward;
+		}
+		
 		my $msg_client = $errmsg;
 		
 		#Check if dad is defined.It occurs when a web browser is closed
@@ -457,7 +461,7 @@ sub c_thread { # clientconnect [server_fileno]
 
 		# try to open connection
 		setstatus("Serving connection: $ip:$port ".(($method&4)?"UDP socket":(($method&8)?"BIND":"-> $dad:$dpo"))." (waiting for connection)");
-		($errmsg, $reason, $bad , $bpo )=c_proxy_connect($method, $dad, $dpo, $user, $pass, $msg_client, $ip, $url_requested, $ctype);
+		($errmsg, $reason, $bad , $bpo )=c_proxy_connect($method, $dad, $dpo, $user, $pass, $msg_client, $ip, $url_requested, $ctype, $ip_fordward);
 		if ($errmsg) {
 			$LL and logline ($method&4?
 				("$c_fd: ".($user?"$user@":"")."$ip connected to SOCKS server but connect for UPD failed: $errmsg"):
@@ -543,6 +547,36 @@ sub c_killclient {	# killclient [message] [loglevel]
 	$exitflag=1;
 }
 
+#Clean request deleting or replacing some headers
+sub clean_request($) {
+	my $buf = shift;
+	
+		# Clean request if uri only has host
+	if ($buf =~ /Host: (.+)\r\n/) {
+		my $host_addr = $1;
+
+		if ($buf =~ /(GET) http:\/\/(.+) HTTP\/(.+)\r\n/ || 
+			$buf =~ /(POST) http:\/\/(.+) HTTP\/(.+)\r\n/ ) {
+			my $type = $1;
+			my $uri = $2;
+			my $version = $3;
+						
+			$uri =~ s/$host_addr//;
+			
+			#Replace uri with new cleaned one
+			$buf =~ s/(GET|POST).+\r\n/$type $uri HTTP\/$version\r\n/g;
+		} 
+	}
+	
+	#Delete X-Forwarded-For header	
+	$buf =~ s/X-Forwarded-For: (.+)\r\n//g;
+
+	#Delete Via header
+	$buf =~ s/Via: (.+)\r\n//g;
+			
+	return $buf;
+}
+
 sub c_clientdatain {	# c_clientdatain clientfileno
 	my $ip_client = shift;
 	my $fn=shift;
@@ -562,23 +596,10 @@ sub c_clientdatain {	# c_clientdatain clientfileno
 		$i=recv($u_fd,$buf,65536,0);
 	}
 	
-	# Clean request if uri only has host
-	if ($buf =~ /Host: (.+)\r\n/) {
-		my $host_addr = $1;
+	# Clean request to ensure headers are right	
+	$buf = clean_request($buf);
 
-		if ($buf =~ /(GET) http:\/\/(.+) HTTP\/(.+)\r\n/ || 
-			$buf =~ /(POST) http:\/\/(.+) HTTP\/(.+)\r\n/ ) {
-			my $type = $1;
-			my $uri = $2;
-			my $version = $3;
-						
-			$uri =~ s/$host_addr//;
-			
-			#Replace uri with new cleaned one
-			$buf =~ s/(GET|POST).+\r\n/$type $uri HTTP\/$version\r\n/g;
-		} 
-	}
-
+	
 	if (!$i) {
 		# do we have a client disconnect?
 		$LL>=4 and logline ("$c_fd: Client -> proxy disconnect start");
@@ -640,13 +661,13 @@ sub c_proxy_datain {	# c_proxy_datain method
 	my $ip_client = shift;
 	my $method=shift;
 	my ($buf,$rawbuf,$i);
-
+	
 	if (!sysread($t_fd,$buf,65536)) {
 		# we lost a proxy connection - disconnect the corresponding client
 		c_killclient ("Irregular proxy disconnect -> disconnecting client",1);
 		return;
 	}
-			
+		
 	$LL>=9 and logline("$c_fd: c_proxy_datain : $buf");
 	# we need to pipe the data into the client socket
 	$t_inbuf.=$buf;
@@ -826,8 +847,9 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 		my $socket_method = 16;
 		my $url_requested = "";
 		my $ctype = "NORMAL";
+		my $ip_fordward = undef;
 		# Get hostname and port
-
+		
 		if ($buff =~ /(CONNECT) (.+):(.+) HTTP.+\r\n/) {
 			$LL>=3 and logline("HTTPS request detected");
 			# It is a HTTPS connection
@@ -859,9 +881,14 @@ sub c_getclientinfo {	# usage: get_getclientinfo servername, serverport
 				$port = 80;
 			}
 		}	
+		
+		#Check if IP was fordwarded
+		if ($buff =~ /X-Forwarded-For: (.+)\r\n/) {
+			$ip_fordward = $1;
+		}
 				
 		$LL>=4 and logline("$c_fd: Client trying to connect to server");
-		return ($host,$port,$error,"","","",16, $url_requested, $ctype);
+		return ($host,$port,$error,"","","",16, $url_requested, $ctype, $ip_fordward);
 	}
 
 	# we have a socks request
